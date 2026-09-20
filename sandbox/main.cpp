@@ -1,39 +1,62 @@
-#include "raylib.h"
-#include "physics/core/world.h"
-#include "physics/core/forces/gravity.h"
-#include <algorithm>
-#include <memory>
+#include "ui.h"
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 
-int main() {
-    namespace pe = PhysicsEngine;
-    InitWindow(960, 540, "Physics Sandbox");
+int main(int argc, char **argv) {
+    int frames = 0, example = 0, width = 1440, height = 900;
+    bool smoke = false;
+    std::string screenshot;
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "--screenshot" && i + 1 < argc)
+            screenshot = argv[++i];
+        else if (arg == "--frames" && i + 1 < argc)
+            frames = std::max(1, std::atoi(argv[++i]));
+        else if (arg == "--preset" && i + 1 < argc)
+            example = std::atoi(argv[++i]);
+        else if (arg == "--width" && i + 1 < argc)
+            width = std::max(1120, std::atoi(argv[++i]));
+        else if (arg == "--height" && i + 1 < argc)
+            height = std::max(740, std::atoi(argv[++i]));
+        else if (arg == "--smoke-test")
+            smoke = true;
+    }
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT |
+                   ((frames || smoke) ? FLAG_WINDOW_HIDDEN | FLAG_WINDOW_ALWAYS_RUN : 0));
+    SetTraceLogLevel(LOG_WARNING);
+    InitWindow(width, height, "Field - Physics Sandbox");
+    SetWindowMinSize(1120, 740);
+    SetExitKey(KEY_NULL);
     SetTargetFPS(60);
-    // Shapes outlive the bodies and the world that refer to them.
-    auto box = pe::Polygon::MakeBox(1, 1);
-    auto ground = pe::Polygon::MakeBox(18, .5f);
-    pe::Material material{1, .35f, .6f, .4f};
-    auto falling = std::make_shared<pe::RigidBody>(&box, material, pe::Vector2{4, 2});
-    auto floor = std::make_shared<pe::RigidBody>(&ground, material, pe::Vector2{8, 7}, true);
-    pe::World world;
-    world.addBody(falling);
-    world.addBody(floor);
-    world.addUniversalForce(std::make_unique<pe::Gravity>(pe::Vector2{0, 9.81f}));
-    constexpr float step = 1.0f / 120.0f;
-    float accumulator = 0;
-    while (!WindowShouldClose()) {
-        accumulator += std::min(GetFrameTime(), .1f);
-        while (accumulator >= step) {
-            world.step(step);
-            accumulator -= step;
+    // Resources and scene files follow the executable, independent of launch cwd.
+    ChangeDirectory(GetApplicationDirectory());
+    try {
+        field::App app;
+        if (smoke) {
+            app.smokeTest();
+            app.wantsExit = true;
         }
-        BeginDrawing();
-        ClearBackground(RAYWHITE);
-        DrawRectanglePro({falling->position.x * 60, falling->position.y * 60, 60, 60},
-                         {30, 30}, falling->orientation * RAD2DEG, BLUE);
-        DrawRectanglePro({floor->position.x * 60, floor->position.y * 60, 1080, 30},
-                         {540, 15}, 0, DARKGRAY);
-        DrawText("Physics engine demo", 20, 20, 22, DARKGRAY);
-        EndDrawing();
+        if (example)
+            app.choosePreset(example);
+        int frame = 0;
+        while (!app.wantsExit) {
+            app.frame();
+            if (frames && ++frame >= frames) {
+                if (!screenshot.empty()) {
+                    Image capture = LoadImageFromScreen();
+                    bool saved = ExportImage(capture, screenshot.c_str());
+                    UnloadImage(capture);
+                    if (!saved)
+                        throw std::runtime_error("Could not save screenshot.");
+                }
+                break;
+            }
+        }
+    } catch (const std::exception &error) {
+        std::cerr << "Field: " << error.what() << '\n';
+        CloseWindow();
+        return 1;
     }
     CloseWindow();
     return 0;
