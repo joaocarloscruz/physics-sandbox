@@ -1,76 +1,40 @@
 #include "raylib.h"
-#include "physics_engine.h"
-#include "physics/core/rigidbody.h"
-#include "physics/core/shape.h"
+#include "physics/core/world.h"
 #include "physics/core/forces/gravity.h"
+#include <algorithm>
 #include <memory>
-#include <vector>
 
-int main(void)
-{
-    const int screenWidth = 800;
-    const int screenHeight = 450;
-
-    InitWindow(screenWidth, screenHeight, "Physics Sandbox");
-
+int main() {
+    namespace pe = PhysicsEngine;
+    InitWindow(960, 540, "Physics Sandbox");
     SetTargetFPS(60);
-
-    // Physics Engine Setup
-    PhysicsEngine::PhysicsEngine physicsEngine;
-    std::vector<PhysicsEngine::RigidBody*> bodies;
-
-    // Create two rectangles
-    PhysicsEngine::Rectangle* rectShape1 = new PhysicsEngine::Rectangle(50, 50);
-    PhysicsEngine::RigidBody* rect1 = new PhysicsEngine::RigidBody(rectShape1, 1.0f, PhysicsEngine::Vector2{ (float)screenWidth / 4, (float)screenHeight / 2 });
-    rect1->velocity = { 10.0f, 100.0f };
-    physicsEngine.addBody(rect1);
-    bodies.push_back(rect1);
-
-    PhysicsEngine::Rectangle* rectShape2 = new PhysicsEngine::Rectangle(10000, 20);
-
-    PhysicsEngine::RigidBody* rect2 = new PhysicsEngine::RigidBody(rectShape2, 1.0f, PhysicsEngine::Vector2{ (float)screenWidth, (float)screenHeight - 5 }, true);
-    physicsEngine.addBody(rect2);
-    bodies.push_back(rect2);
-
-    float accumulator = 0.0f;
-    const float fixedDeltaTime = 1.0f / 60.0f;
-
-    while (!WindowShouldClose())
-    {
-        // Update
-        accumulator += GetFrameTime();
-        while (accumulator >= fixedDeltaTime)
-        {
-            physicsEngine.step(fixedDeltaTime);
-            accumulator -= fixedDeltaTime;
+    // Shapes outlive the bodies and the world that refer to them.
+    auto box = pe::Polygon::MakeBox(1, 1);
+    auto ground = pe::Polygon::MakeBox(18, .5f);
+    pe::Material material{1, .35f, .6f, .4f};
+    auto falling = std::make_shared<pe::RigidBody>(&box, material, pe::Vector2{4, 2});
+    auto floor = std::make_shared<pe::RigidBody>(&ground, material, pe::Vector2{8, 7}, true);
+    pe::World world;
+    world.addBody(falling);
+    world.addBody(floor);
+    world.addUniversalForce(std::make_unique<pe::Gravity>(pe::Vector2{0, 9.81f}));
+    constexpr float step = 1.0f / 120.0f;
+    float accumulator = 0;
+    while (!WindowShouldClose()) {
+        accumulator += std::min(GetFrameTime(), .1f);
+        while (accumulator >= step) {
+            world.step(step);
+            accumulator -= step;
         }
-
-        // Draw
         BeginDrawing();
-
         ClearBackground(RAYWHITE);
-
-        for (const auto& body : bodies)
-        {
-            PhysicsEngine::Vector2 position = body->GetPosition();
-            if (body->shape->type == PhysicsEngine::ShapeType::RECTANGLE)
-            {
-                PhysicsEngine::Rectangle* rect = static_cast<PhysicsEngine::Rectangle*>(body->shape);
-                DrawRectanglePro(
-                    { position.x, position.y, rect->GetWidth(), rect->GetHeight() },
-                    { rect->GetWidth() / 2, rect->GetHeight() / 2 },
-                    body->orientation * RAD2DEG,
-                    body->IsStatic() ? DARKGRAY : BLUE
-                );
-            }
-        }
-
-        DrawText("Two rectangles colliding!", 10, 10, 20, DARKGRAY);
-
+        DrawRectanglePro({falling->position.x * 60, falling->position.y * 60, 60, 60},
+                         {30, 30}, falling->orientation * RAD2DEG, BLUE);
+        DrawRectanglePro({floor->position.x * 60, floor->position.y * 60, 1080, 30},
+                         {540, 15}, 0, DARKGRAY);
+        DrawText("Physics engine demo", 20, 20, 22, DARKGRAY);
         EndDrawing();
     }
-
     CloseWindow();
-
     return 0;
 }

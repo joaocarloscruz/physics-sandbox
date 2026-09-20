@@ -30,3 +30,11 @@
 # Logs and temporary files
 *.log
 *.tmp
+
+/build-*/
+/dist/
+/scenes/
+/exports/
+*.field
+*.field.bak
+*.field.tmp
