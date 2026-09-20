@@ -44,6 +44,8 @@ if(SANDBOX_BUILD_APP)
             "${CMAKE_CURRENT_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:Sandbox>/assets")
     install(TARGETS Sandbox RUNTIME DESTINATION . COMPONENT Runtime)
     install(DIRECTORY assets DESTINATION . COMPONENT Runtime)
+    install(DIRECTORY docs DESTINATION . COMPONENT Runtime)
+    install(FILES README.md LICENSE THIRD_PARTY.md DESTINATION . COMPONENT Runtime)
 endif()
 
 include(CTest)
